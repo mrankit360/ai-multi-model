@@ -1,0 +1,232 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Intelligence</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+        }
+
+        h1 { color: #1e40af; }
+
+        input, button {
+            padding: 12px;
+            margin: 8px 0;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .frame {
+            display: inline-block;
+            width: 280px;
+            margin: 10px;
+            vertical-align: top;
+        }
+
+        .frame img {
+            width: 100%;
+            border-radius: 8px;
+        }
+
+        pre {
+            background: #111827;
+            color: #a7f3d0;
+            padding: 15px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>AI Video Intelligence System</h1>
+
+    <p>Upload an MP4 video to analyze objects and generate a report.</p>
+
+    <form id="uploadForm">
+
+        <input
+            type="file"
+            id="video"
+            accept="video/mp4"
+            required
+        >
+
+        <br>
+
+        <label>Frame interval (seconds):</label>
+        <input
+            type="number"
+            id="interval"
+            value="2"
+            min="1"
+        >
+
+        <br>
+
+        <label>Detection confidence:</label>
+        <input
+            type="number"
+            id="confidence"
+            value="0.4"
+            min="0.01"
+            max="1"
+            step="0.05"
+        >
+
+        <br>
+
+        <button type="submit">Analyze Video</button>
+
+    </form>
+
+    <p id="status"></p>
+
+    <div id="summary"></div>
+
+    <h2>Detected Frames</h2>
+    <div id="frames"></div>
+
+    <h2>JSON Analysis Report</h2>
+    <pre id="report"></pre>
+
+    <a id="download" style="display:none">
+        Download JSON Report
+    </a>
+
+</div>
+
+<script>
+
+document.getElementById("uploadForm")
+.addEventListener("submit", async function(e) {
+
+    e.preventDefault();
+
+    const file = document.getElementById("video").files[0];
+
+    if (!file) return;
+
+    const formData = new FormData();
+
+    formData.append("file", file);
+
+    formData.append(
+        "interval",
+        document.getElementById("interval").value
+    );
+
+    formData.append(
+        "confidence",
+        document.getElementById("confidence").value
+    );
+
+    document.getElementById("status").innerText =
+        "Analyzing video... Please wait.";
+
+    try {
+
+        const response = await fetch("/analyze", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || "Analysis failed");
+        }
+
+        document.getElementById("status").innerText =
+            "Analysis completed successfully!";
+
+        document.getElementById("summary").innerHTML = `
+            <h2>Video Summary</h2>
+            <p>Duration: ${data.video_duration} seconds</p>
+            <p>Frames analyzed:
+                ${data.summary.total_frames_analyzed}
+            </p>
+            <p>Objects:
+                ${data.summary.unique_object_types.join(", ")}
+            </p>
+            <p>Tracked objects:
+                ${data.summary.total_tracked_objects}
+            </p>
+        `;
+
+        const frameContainer =
+            document.getElementById("frames");
+
+        frameContainer.innerHTML = "";
+
+        data.frames.forEach(frame => {
+
+            const card = document.createElement("div");
+            card.className = "frame";
+
+            const image = document.createElement("img");
+
+            image.src = "/" + frame.annotated_frame;
+
+            const heading = document.createElement("h3");
+
+            heading.textContent =
+                "Timestamp: " + frame.timestamp + " sec";
+
+            const objects = document.createElement("p");
+
+            objects.textContent =
+                frame.detections.map(
+                    item => item.object + " (" +
+                    item.confidence + ")"
+                ).join(", ") || "No objects detected";
+
+            card.append(image, heading, objects);
+            frameContainer.appendChild(card);
+
+        });
+
+        document.getElementById("report").textContent =
+            JSON.stringify(data, null, 2);
+
+        const download = document.getElementById("download");
+
+        download.href = "/reports/" + data.video_id;
+        download.download = data.video_id + ".json";
+        download.style.display = "block";
+
+    } catch (error) {
+
+        document.getElementById("status").innerText =
+            "Error: " + error.message;
+
+    }
+
+});
+
+</script>
+
+</body>
+</html>
